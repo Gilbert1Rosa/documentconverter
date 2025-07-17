@@ -18,23 +18,78 @@ public class PDFBoxPdfToTiffConverter {
     private final ProgressCallback processCallback;
     private final ProgressCallback writeCallback;
 
+    private static final int CHUNK_SIZE = 100;
+
+    private static final ImageType DEFAULT_IMAGE_TYPE = ImageType.RGB;
+
     public PDFBoxPdfToTiffConverter(ProgressCallback processCallback, ProgressCallback writeCallback) {
         this.processCallback = processCallback;
         this.writeCallback = writeCallback;
     }
 
-    /**
-     * Convert PDF to a single multi-page TIFF
-     * @param pdfPath Path to the input PDF file
-     * @param outputPath Path for the output TIFF file
-     * @param dpi Resolution for the output images
-     * @throws IOException if file operations fail
-     */
-    public void convertPdfToMultiPageTiff(String pdfPath, String outputPath, int dpi) throws IOException {
-        PDDocument document = PDDocument.load(new File(pdfPath));
+    public void convertToPdfMultiPageTiffUsingTemps(String pdfPath, String outputPath, int dpi) throws IOException {
+        List<String> tempFiles = new ArrayList<>();
 
-        System.out.println("Procesando paginas...\n");
+        try (PDDocument document = PDDocument.load(new File(pdfPath))) {
+            int pageCount = document.getNumberOfPages();
+
+            if (pageCount < CHUNK_SIZE) {
+                return;
+            }
+
+            int tempFileIndex = 0;
+            for (int page = 0; page < pageCount; page+=CHUNK_SIZE) {
+                int end = page + Math.min(CHUNK_SIZE, pageCount - page);
+                List<BufferedImage> images = getImagesFromPdfPages(document, page, end, dpi);
+                String tempFile = "temp_" + tempFileIndex + ".tiff";
+                tempFiles.add(tempFile);
+                saveAsMultiPageTiff(images, tempFile);
+                tempFileIndex++;
+            }
+        }
+
+        List<BufferedImage> tempImages = new ArrayList<>();
+        for (String tempFile : tempFiles) {
+            BufferedImage image = ImageIO.read(new File(tempFile));
+            tempImages.add(image);
+        }
+
+        saveAsMultiPageTiff(tempImages, outputPath);
+        // cleanup temp
+    }
+
+    private List<BufferedImage> getImagesFromPdfPages(PDDocument document, int start, int end, int dpi) {
+        PDFRenderer renderer = new PDFRenderer(document);
+        int pageCount = document.getNumberOfPages();
+
+        if (start > pageCount || end > pageCount) {
+            throw new IllegalArgumentException("Start or end out of range");
+        }
+
+        List<BufferedImage> images = new ArrayList<>();
+
         try {
+            for (int pageIndex = start; pageIndex < end; pageIndex++) {
+                BufferedImage image = renderer.renderImageWithDPI(
+                        pageIndex,
+                        dpi,
+                        DEFAULT_IMAGE_TYPE
+                );
+
+                images.add(image);
+            }
+        } catch (IOException ioe) {
+            ioe.printStackTrace();
+        }
+
+        return images;
+    }
+
+
+    public void convertPdfToMultiPageTiff(String pdfPath, String outputPath, int dpi) throws IOException {
+
+        try (PDDocument document = PDDocument.load(new File(pdfPath))) {
+            System.out.println("Procesando paginas...\n");
             PDFRenderer pdfRenderer = new PDFRenderer(document);
             int pageCount = document.getNumberOfPages();
 
@@ -54,8 +109,6 @@ public class PDFBoxPdfToTiffConverter {
 
             System.out.println("Multi-page TIFF created: " + outputPath);
 
-        } finally {
-            document.close();
         }
     }
 
@@ -69,6 +122,10 @@ public class PDFBoxPdfToTiffConverter {
 
         File outputFile = new File(outputPath);
 
+        ImageIO.write(combineImages(images), "TIFF", outputFile);
+    }
+
+    private BufferedImage combineImages(List<BufferedImage> images) {
         int maxWidth = 0;
         int height = 0;
 
@@ -96,7 +153,6 @@ public class PDFBoxPdfToTiffConverter {
         }
 
         g2d.dispose();
-
-        ImageIO.write(combinedImage, "TIFF", outputFile);
+        return combinedImage;
     }
 }
