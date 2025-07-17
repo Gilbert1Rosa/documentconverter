@@ -1,6 +1,10 @@
 package org.example;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * Hello world!
@@ -9,12 +13,12 @@ import java.io.IOException;
 public class App {
 
     private static class Params {
-        private final String pdfPath;
+        private final List<String> pdfPaths;
         private final String outputPath;
         private final int dpi;
 
-        public Params(String pdfPath, String outputPath, int dpi) {
-            this.pdfPath = pdfPath;
+        public Params(List<String> pdfPaths, String outputPath, int dpi) {
+            this.pdfPaths = pdfPaths;
             this.outputPath = outputPath;
             this.dpi = dpi;
         }
@@ -27,8 +31,8 @@ public class App {
             return dpi;
         }
 
-        public String getPdfPath() {
-            return pdfPath;
+        public List<String> getPdfPaths() {
+            return pdfPaths;
         }
     }
 
@@ -45,21 +49,33 @@ public class App {
                         System.out.println("Escribiendo pagina: " + page);
                     }
             );
-            converter.convertPdfToMultiPageTiff(params.getPdfPath(), params.getOutputPath(), params.getDpi());
+            converter.convertPdfToMultiPageTiff(params.getPdfPaths(), params.getOutputPath(), params.getDpi());
         } catch (IOException ioe) {
             ioe.printStackTrace();
         }
     }
 
     private static Params getParams(String[] args) {
+        List<String> paths = new ArrayList<>();
+        String output;
         int dpi;
 
         try {
-            dpi = Integer.parseInt(args[2]);
+            if (args.length == 3) {
+                paths.add(args[0]);
+                output = args[1];
+                dpi = Integer.parseInt(args[2]);
+            } else if (args.length > 3) {
+                Collections.addAll(paths, Arrays.copyOfRange(args, 0, args.length - 2));
+                output = args[args.length - 2];
+                dpi = Integer.parseInt(args[args.length - 1]);
+            } else {
+                throw new IllegalArgumentException("Error with parameters!");
+            }
         } catch (NumberFormatException nfe) {
             throw new IllegalArgumentException("DPI should be a number!", nfe);
         }
 
-        return new Params(args[0], args[1], dpi);
+        return new Params(paths, output, dpi);
     }
 }

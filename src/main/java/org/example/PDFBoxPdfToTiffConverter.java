@@ -58,33 +58,28 @@ public class PDFBoxPdfToTiffConverter {
         // cleanup temp
     }
 
-    private List<BufferedImage> getImagesFromPdfPages(PDDocument document, int start, int end, int dpi) {
-        PDFRenderer renderer = new PDFRenderer(document);
-        int pageCount = document.getNumberOfPages();
-
-        if (start > pageCount || end > pageCount) {
-            throw new IllegalArgumentException("Start or end out of range");
-        }
-
+    public void convertPdfToMultiPageTiff(List<String> pdfPaths, String outputPath, int dpi) throws IOException {
         List<BufferedImage> images = new ArrayList<>();
 
-        try {
-            for (int pageIndex = start; pageIndex < end; pageIndex++) {
-                BufferedImage image = renderer.renderImageWithDPI(
-                        pageIndex,
-                        dpi,
-                        DEFAULT_IMAGE_TYPE
-                );
+        for (String pdfPath : pdfPaths) {
+            try (PDDocument document = PDDocument.load(new File(pdfPath))) {
+                PDFRenderer pdfRenderer = new PDFRenderer(document);
+                int pageCount = document.getNumberOfPages();
 
-                images.add(image);
+                for (int pageIndex = 0; pageIndex < pageCount; pageIndex++) {
+                    BufferedImage bufferedImage = pdfRenderer.renderImageWithDPI(
+                            pageIndex,
+                            dpi,
+                            ImageType.RGB
+                    );
+                    images.add(bufferedImage);
+                    processCallback.progress(pageIndex);
+                }
             }
-        } catch (IOException ioe) {
-            ioe.printStackTrace();
         }
 
-        return images;
+        saveAsMultiPageTiff(images, outputPath);
     }
-
 
     public void convertPdfToMultiPageTiff(String pdfPath, String outputPath, int dpi) throws IOException {
 
@@ -123,6 +118,33 @@ public class PDFBoxPdfToTiffConverter {
         File outputFile = new File(outputPath);
 
         ImageIO.write(combineImages(images), "TIFF", outputFile);
+    }
+
+    private List<BufferedImage> getImagesFromPdfPages(PDDocument document, int start, int end, int dpi) {
+        PDFRenderer renderer = new PDFRenderer(document);
+        int pageCount = document.getNumberOfPages();
+
+        if (start > pageCount || end > pageCount) {
+            throw new IllegalArgumentException("Start or end out of range");
+        }
+
+        List<BufferedImage> images = new ArrayList<>();
+
+        try {
+            for (int pageIndex = start; pageIndex < end; pageIndex++) {
+                BufferedImage image = renderer.renderImageWithDPI(
+                        pageIndex,
+                        dpi,
+                        DEFAULT_IMAGE_TYPE
+                );
+
+                images.add(image);
+            }
+        } catch (IOException ioe) {
+            ioe.printStackTrace();
+        }
+
+        return images;
     }
 
     private BufferedImage combineImages(List<BufferedImage> images) {
