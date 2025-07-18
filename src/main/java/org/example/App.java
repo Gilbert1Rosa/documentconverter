@@ -1,5 +1,8 @@
 package org.example;
 
+import ch.qos.logback.classic.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -11,6 +14,8 @@ import java.util.List;
  *
  */
 public class App {
+
+    private static final Logger LOGGER = (Logger) LoggerFactory.getLogger(App.class);
 
     private static class Params {
         private final List<String> pdfPaths;
@@ -37,21 +42,21 @@ public class App {
     }
 
     public static void main( String[] args ) {
-        System.out.println( "Convirtiendo PDF a TIFF (chunks): " );
+        LOGGER.debug( "Convirtiendo PDF a TIFF (chunks): " );
         Params params = getParams(args);
 
         try {
             PDFBoxPdfToTiffConverter converter = new PDFBoxPdfToTiffConverter(
                     (int page) -> {
-                        System.out.println("Procesando pagina: " + page);
+                        LOGGER.debug("Procesando pagina: " + page);
                     },
                     (int page) -> {
-                        System.out.println("Escribiendo pagina: " + page);
+                        LOGGER.debug("Escribiendo pagina: " + page);
                     }
             );
             converter.convertPdfToMultiPageTiff(params.getPdfPaths(), params.getOutputPath(), params.getDpi());
         } catch (IOException ioe) {
-            ioe.printStackTrace();
+            LOGGER.error("IO Error", ioe);
         }
     }
 
